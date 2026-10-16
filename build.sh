@@ -15,8 +15,8 @@
 set -e
 cd "$(dirname "$0")"
 
-echo "[1/2] building Linux binary..."
-g++ -O2 -std=c++17 -Wall -Wextra -o hdcfwd hdcfwd.cpp -lpthread
+echo "[1/2] building Linux binary (fully static, no glibc version dependency)..."
+g++ -O2 -std=c++17 -Wall -Wextra -static -o hdcfwd hdcfwd.cpp -lpthread
 echo "    -> $(pwd)/hdcfwd"
 
 echo "[2/2] building Windows binary (cross)..."
@@ -45,6 +45,6 @@ if [ -z "$MINGW" ]; then
     echo "done (linux only)."
     exit 0
 fi
-"$MINGW" -O2 -std=c++17 -Wall -Wextra -o hdcfwd.exe hdcfwd.cpp -lws2_32 -static -lpthread
+"$MINGW" -O2 -std=c++17 -Wall -Wextra -o hdcfwd.exe hdcfwd.cpp -lws2_32 -liphlpapi -static -lpthread
 echo "    -> $(pwd)/hdcfwd.exe"
 echo "done."

@@ -71,24 +71,29 @@
 
 ### 方式 A：直接编译（无任何第三方依赖）
 
+两个平台默认都是**全静态链接**，产物无任何运行时库依赖（Linux 端不受
+glibc 版本差异影响，可直接在老系统上运行；Windows 端单文件直接运行）：
+
 ```bash
-# Linux
-g++ -O2 -std=c++17 -o hdcfwd hdcfwd.cpp -lpthread
+# Linux（静态）
+g++ -O2 -std=c++17 -static -o hdcfwd hdcfwd.cpp -lpthread
 
-# Windows (MSVC)
-cl /O2 /EHsc hdcfwd.cpp ws2_32.lib
+# Windows (MSVC，静态 CRT)
+cl /O2 /EHsc /MT hdcfwd.cpp ws2_32.lib iphlpapi.lib
 
-# Windows (mingw 交叉编译)
+# Windows (mingw 交叉编译，静态)
 x86_64-w64-mingw32-clang++ -O2 -std=c++17 -o hdcfwd.exe hdcfwd.cpp \
-    -lws2_32 -static -lpthread
+    -lws2_32 -liphlpapi -static -lpthread
 ```
 
 或直接运行 `./build.sh`（自动产出 Linux + Windows 双平台二进制，Windows
 部分优先使用 OpenHarmony 源码树自带的 mingw 工具链，找不到则跳过）。
 
-> Ubuntu 24.04 交叉编译提示：若 clang 报 `libtinfo.so.5` 缺失，从
+> ① Ubuntu 24.04 交叉编译提示：若 clang 报 `libtinfo.so.5` 缺失，从
 > Ubuntu 22.04 归档下载 `libtinfo5_6.3-2_amd64.deb` 解出后设置
 > `LD_LIBRARY_PATH` 指向它即可。
+> ② 静态 glibc 的已知小限制：以**主机名**（而非 IP）作为 client 目标时，
+> 目标机器需有可用的 NSS 配置；推荐直接用 IP（`hdcfwd client 192.168.x.x`）。
 
 ### 方式 B：在 OpenHarmony 源码树中编译（附：编译官方 hdc）
 
@@ -130,7 +135,20 @@ hdcfwd.exe server
 
 - 本机原有 hdc 使用方式**完全不受影响**（hdc server 照常只监听回环 8710）；
 - hdc server 没启动也没关系，转发器会自动拉起并持续保活；
-- 防火墙需放行 9710/tcp（若开启）。
+- 防火墙需放行 9710/tcp（若开启）；
+- 启动时会**打印本机所有网卡 IP**，直接照抄到 client 机器上用：
+
+```
+> hdcfwd server
+[info] hdcfwd server starting: 0.0.0.0:9710 -> 127.0.0.1:8710
+[info] using hdc binary: C:\...\toolchains\hdc.exe
+[info] hdcfwd server ready on 0.0.0.0:9710 (local hdc server port 8710)
+[info] local addresses clients can connect to:
+[info]     192.168.200.1   (vEthernet (private_switch))
+[info]     7.246.254.131   (WLAN 5)
+[info]     172.25.160.1    (vEthernet (Default Switch))
+[info] on client machines run: hdcfwd client 192.168.200.1
+```
 
 **开机自启（Windows，无需管理员）**
 

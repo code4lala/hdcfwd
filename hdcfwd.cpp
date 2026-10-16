@@ -54,6 +54,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <iphlpapi.h>
 #include <process.h>
 typedef SOCKET socket_t;
 #define INVALID_SOCK INVALID_SOCKET
@@ -63,6 +64,8 @@ typedef SOCKET socket_t;
 #else
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
 #include <signal.h>
@@ -283,6 +286,22 @@ std::wstring Utf8ToW16(const std::string &s)
     MultiByteToWideChar(CP_UTF8, 0, s.c_str(), (int)s.size(), &w[0], len);
     return w;
 }
+
+std::string Utf16ToUtf8(const wchar_t *s)
+{
+    if (!s || !*s) {
+        return std::string();
+    }
+    int n = (int)wcslen(s);
+    int len = WideCharToMultiByte(CP_UTF8, 0, s, n, nullptr, 0, nullptr, nullptr);
+    if (len <= 0) {
+        return std::string();
+    }
+    std::string out;
+    out.resize(len);
+    WideCharToMultiByte(CP_UTF8, 0, s, n, &out[0], len, nullptr, nullptr);
+    return out;
+}
 #endif
 
 bool FileExists(const std::string &p)
@@ -477,13 +496,17 @@ std::string SelfPath()
 }
 
 // Find the hdc binary: explicit --hdc, then next to hdcfwd itself, then PATH.
+// An explicit --hdc that does not exist is a hard error (never silently fall
+// back to some other hdc from PATH).
 std::string ResolveHdcBinary(const std::string &explicitPath)
 {
     if (!explicitPath.empty()) {
         if (FileExists(explicitPath)) {
             return explicitPath;
         }
-        LogWarn("given --hdc path does not exist: %s", explicitPath.c_str());
+        fprintf(stderr,
+                "[error] --hdc path does not exist: %s\n", explicitPath.c_str());
+        exit(1);
     }
     std::string self = SelfPath();
     if (!self.empty()) {
@@ -1079,6 +1102,93 @@ void ParseArgUint16(const char *text, const char *name, uint16_t &out)
 // ---------------------------------------------------------------------------
 // Server mode (on the machine with devices)
 // ---------------------------------------------------------------------------
+
+// Log every LAN-facing IPv4 address of this machine so the user immediately
+// knows what to type on the client machines.
+static void LogLocalAddresses(unsigned listenPort)
+{
+    std::vector<std::pair<std::string, std::string>> addrs; // (ip, adapter)
+#ifdef _WIN32
+    {
+        ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER;
+        ULONG size = 16 * 1024;
+        ULONG rc = ERROR_BUFFER_OVERFLOW;
+        std::vector<unsigned char> buf;
+        PIP_ADAPTER_ADDRESSES adapters = nullptr;
+        for (int attempt = 0; attempt < 3 && rc == ERROR_BUFFER_OVERFLOW; attempt++) {
+            buf.resize(size);
+            adapters = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buf.data());
+            rc = GetAdaptersAddresses(AF_INET, flags, nullptr, adapters, &size);
+        }
+        if (rc != NO_ERROR) {
+            return;
+        }
+        for (PIP_ADAPTER_ADDRESSES a = adapters; a; a = a->Next) {
+            if (a->OperStatus != IfOperStatusUp || a->IfType == IF_TYPE_SOFTWARE_LOOPBACK) {
+                continue;
+            }
+            std::string name = Utf16ToUtf8(a->FriendlyName);
+            if (name.empty()) {
+                name = Utf16ToUtf8(a->Description);
+            }
+            for (PIP_ADAPTER_UNICAST_ADDRESS u = a->FirstUnicastAddress; u; u = u->Next) {
+                if (!u->Address.lpSockaddr || u->Address.lpSockaddr->sa_family != AF_INET) {
+                    continue;
+                }
+                struct sockaddr_in *sa = reinterpret_cast<struct sockaddr_in *>(u->Address.lpSockaddr);
+                char ip[INET_ADDRSTRLEN] = {0};
+                if (!inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip))) {
+                    continue;
+                }
+                if (!strncmp(ip, "169.254.", 8)) { // unconfigured DHCP
+                    continue;
+                }
+                addrs.push_back({ip, name});
+            }
+        }
+    }
+#else
+    {
+        struct ifaddrs *ifs = nullptr;
+        if (getifaddrs(&ifs) != 0) {
+            return;
+        }
+        for (struct ifaddrs *i = ifs; i; i = i->ifa_next) {
+            if (!i->ifa_addr || i->ifa_addr->sa_family != AF_INET) {
+                continue;
+            }
+            unsigned fl = (unsigned)i->ifa_flags;
+            if ((fl & IFF_LOOPBACK) || !(fl & IFF_UP)) {
+                continue;
+            }
+            struct sockaddr_in *sa = reinterpret_cast<struct sockaddr_in *>(i->ifa_addr);
+            char ip[INET_ADDRSTRLEN] = {0};
+            if (!inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip))) {
+                continue;
+            }
+            if (!strncmp(ip, "169.254.", 8)) { // unconfigured DHCP
+                continue;
+            }
+            addrs.push_back({ip, i->ifa_name ? i->ifa_name : ""});
+        }
+        freeifaddrs(ifs);
+    }
+#endif
+    if (addrs.empty()) {
+        return;
+    }
+    LogInfo("local addresses clients can connect to:");
+    for (const auto &a : addrs) {
+        LogInfo("    %-15s (%s)", a.first.c_str(), a.second.c_str());
+    }
+    const std::string &ip = addrs[0].first;
+    if (listenPort == 9710) {
+        LogInfo("on client machines run: hdcfwd client %s", ip.c_str());
+    } else {
+        LogInfo("on client machines run: hdcfwd client %s -t %u", ip.c_str(), listenPort);
+    }
+}
+
 int RunServer(Options &opt)
 {
     LogInfo("hdcfwd server starting: 0.0.0.0:%u -> 127.0.0.1:%u", (unsigned)opt.tunnelPort,
@@ -1100,6 +1210,7 @@ int RunServer(Options &opt)
     g_listenerForWake = listener;
     LogInfo("hdcfwd server ready on 0.0.0.0:%u (local hdc server port %u)",
             (unsigned)opt.tunnelPort, (unsigned)opt.hdcPort);
+    LogLocalAddresses(opt.tunnelPort);
 
     // keepalive thread: like the original tool's periodic `adb start-server`
     std::thread keepalive([&opt]() {
@@ -1278,6 +1389,9 @@ int RunClient(Options &opt)
 
     LogInfo("hdcfwd client ready on %s:%u - plain 'hdc ...' now uses the remote devices",
             bindIp.c_str(), (unsigned)opt.hdcPort);
+    if (opt.expose) {
+        LogLocalAddresses(opt.hdcPort);
+    }
 
     long long connId = 0;
     while (!g_stop) {
