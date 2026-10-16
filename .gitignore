@@ -1,0 +1,5 @@
+hdcfwd
+hdcfwd.exe
+*.o
+*.log
+dist/
