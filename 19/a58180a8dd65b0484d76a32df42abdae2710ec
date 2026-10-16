@@ -1,0 +1,42 @@
+build.sh
+  s_286cb50359385e::t_2c814c51349316 18-19
+  s_286cb50359385e::t_52b875b5b93070 48
+hdcfwd.cpp
+  s_286cb50359385e::t_a4ed57e45a919a 1392-1394
+  s_286cb50359385e::t_f66e143bce3925 499-500,507-509
+  s_286cb50359385e::t_846ecf40b9a3f2 289-304
+  s_286cb50359385e::t_e5c6d825b5d287 57
+  s_286cb50359385e::t_cb85c3e6df48e5 67-68
+  s_286cb50359385e::t_49e27e8cc05d50 1105-1191
+  s_286cb50359385e::t_abbe8b5bd581b7 1213
+README.md
+  s_286cb50359385e::t_3cdf935bde293b 74-76,78-79,81-82,84,86,92,95-96
+  s_286cb50359385e::t_e75440bf25a20a 138-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "5.30.3",
+  "base_commit_sha": "19a58180a8dd65b0484d76a32df42abdae2710ec",
+  "prompts": {},
+  "humans": {
+    "h_f47a5d7feb9cfe": {
+      "author": "code4lala <fengziteng2@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_286cb50359385e": {
+      "agent_id": {
+        "tool": "deepseek-harness",
+        "id": "session-ca9d840d-cd15-4746-ba59-4420f5d1cf20",
+        "model": "glm-5.3"
+      },
+      "human_author": "code4lala <fengziteng2@huawei.com>",
+      "custom_attributes": {
+        "stats_model_totals": "{\"glm-5.3\":{\"additions\":144,\"deletions\":12}}",
+        "stats_total_additions": "144",
+        "stats_total_deletions": "12",
+        "stats_turn_models": "{\"t_2c814c51349316\":\"glm-5.3\",\"t_3cdf935bde293b\":\"glm-5.3\",\"t_49e27e8cc05d50\":\"glm-5.3\",\"t_52b875b5b93070\":\"glm-5.3\",\"t_846ecf40b9a3f2\":\"glm-5.3\",\"t_a4ed57e45a919a\":\"glm-5.3\",\"t_abbe8b5bd581b7\":\"glm-5.3\",\"t_cb85c3e6df48e5\":\"glm-5.3\",\"t_e5c6d825b5d287\":\"glm-5.3\",\"t_e75440bf25a20a\":\"glm-5.3\",\"t_f66e143bce3925\":\"glm-5.3\"}"
+      }
+    }
+  }
+}
