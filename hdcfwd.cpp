@@ -1465,8 +1465,51 @@ void OnTermSignal(int)
 
 }  // namespace
 
+#ifdef _WIN32
+// Adapter names may contain non-ASCII characters (e.g. "以太网" on zh-CN
+// Windows); this program prints UTF-8, while a default console code page
+// (CP936/GBK) would render that as mojibake. While attached to a real
+// console, switch it to UTF-8 and restore the original page on exit.
+// Redirected output (files, pipes, ssh) is left untouched (raw UTF-8).
+static UINT g_savedConsoleCp = 0;
+
+static void ConsoleUtf8Init()
+{
+    bool consoleAttached = false;
+    HANDLE handles[] = {GetStdHandle(STD_OUTPUT_HANDLE), GetStdHandle(STD_ERROR_HANDLE)};
+    for (HANDLE h : handles) {
+        if (h != nullptr && h != INVALID_HANDLE_VALUE && GetFileType(h) == FILE_TYPE_CHAR) {
+            consoleAttached = true;
+        }
+    }
+    if (!consoleAttached) {
+        return;
+    }
+    UINT cp = GetConsoleOutputCP();
+    if (cp != 0 && cp != CP_UTF8) {
+        g_savedConsoleCp = cp;
+        SetConsoleOutputCP(CP_UTF8);
+        LogInfo("console code page %u -> %u (utf-8) for non-ascii names", cp, (unsigned)CP_UTF8);
+    }
+}
+
+static void ConsoleUtf8Restore()
+{
+    if (g_savedConsoleCp != 0) {
+        UINT restoreTo = g_savedConsoleCp;
+        g_savedConsoleCp = 0;
+        SetConsoleOutputCP(restoreTo);
+        LogInfo("console code page restored to %u", restoreTo);
+    }
+}
+#endif
+
 int main(int argc, char **argv)
 {
+#ifdef _WIN32
+    ConsoleUtf8Init();
+    atexit(ConsoleUtf8Restore);
+#endif
     SocketInit sockInit;
     Options opt;
 
