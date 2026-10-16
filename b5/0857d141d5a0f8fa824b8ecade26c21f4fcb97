@@ -1,0 +1,30 @@
+build.sh
+  s_286cb50359385e::t_51060e23f6ed57 3-14,19-20,25-37,43-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "5.30.3",
+  "base_commit_sha": "b50857d141d5a0f8fa824b8ecade26c21f4fcb97",
+  "prompts": {},
+  "humans": {
+    "h_f47a5d7feb9cfe": {
+      "author": "code4lala <fengziteng2@huawei.com>"
+    }
+  },
+  "sessions": {
+    "s_286cb50359385e": {
+      "agent_id": {
+        "tool": "deepseek-harness",
+        "id": "session-ca9d840d-cd15-4746-ba59-4420f5d1cf20",
+        "model": "glm-5.3"
+      },
+      "human_author": "code4lala <fengziteng2@huawei.com>",
+      "custom_attributes": {
+        "stats_model_totals": "{\"glm-5.3\":{\"additions\":34,\"deletions\":16}}",
+        "stats_total_additions": "34",
+        "stats_total_deletions": "16",
+        "stats_turn_models": "{\"t_51060e23f6ed57\":\"glm-5.3\"}"
+      }
+    }
+  }
+}
